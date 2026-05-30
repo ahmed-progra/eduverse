@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
-DB_PATH = os.path.join(DB_DIR, "eduverse.db")
+DB_PATH = os.environ.get("EDUVERSE_DB_PATH") or os.path.join(DB_DIR, "eduverse.db")
 
 
 def get_conn() -> sqlite3.Connection:
