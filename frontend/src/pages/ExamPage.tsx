@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { BookOpen, Clock, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react'
@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageSpinner } from '../components/ui/Spinner'
 import { getExam, submitExam } from '../api/exams'
+import { getApiError } from '../utils/error'
 import type { Exam, Question } from '../types'
 import { useTitle } from '../hooks/useTitle'
 import { toast } from 'react-hot-toast'
@@ -19,6 +20,7 @@ export default function ExamPage() {
   const [answers, setAnswers] = useState<Record<string, number | string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
     if (!examId) return
@@ -27,22 +29,23 @@ export default function ExamPage() {
         setExam(e)
         setTimeLeft(e.time_limit_minutes * 60)
       })
+      .catch((err) => toast.error(getApiError(err, 'Failed to load exam')))
       .finally(() => setIsLoading(false))
   }, [examId])
 
   useEffect(() => {
     if (timeLeft === null || timeLeft <= 0) return
-    const timer = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t === null || t <= 1) {
-          clearInterval(timer)
+          clearInterval(timerRef.current)
           return 0
         }
         return t - 1
       })
     }, 1000)
-    return () => clearInterval(timer)
-  }, [timeLeft])
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [timeLeft === null])
 
   const handleSelect = (questionId: string, value: number | string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))

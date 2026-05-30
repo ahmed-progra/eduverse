@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, BookOpen, CheckCircle, ChevronRight, MessageCircle } from 'lucide-react'
 import { Card } from '../components/ui/Card'
@@ -9,12 +9,15 @@ import { getLesson } from '../api/lessons'
 import { useProgressStore } from '../stores/progressStore'
 import { useChatStore } from '../stores/chatStore'
 import { useTitle } from '../hooks/useTitle'
+import { getApiError } from '../utils/error'
+import { toast } from 'react-hot-toast'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import type { Lesson } from '../types'
 
 export default function LessonPage() {
   const { lessonId } = useParams<{ lessonId: string }>()
+  const navigate = useNavigate()
   useTitle('Lesson')
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -30,6 +33,7 @@ export default function LessonPage() {
         setLesson(l)
         setLessonContext(l.id)
       })
+      .catch((err) => toast.error(getApiError(err, 'Failed to load lesson')))
       .finally(() => setIsLoading(false))
   }, [lessonId, setLessonContext])
 
@@ -38,6 +42,9 @@ export default function LessonPage() {
     setIsCompleting(true)
     try {
       await markComplete(lessonId)
+      toast.success('Lesson completed!')
+    } catch (err: any) {
+      toast.error(getApiError(err, 'Failed to complete lesson'))
     } finally {
       setIsCompleting(false)
     }
@@ -106,7 +113,7 @@ export default function LessonPage() {
               {block.type === 'quiz_prompt' && (
                 <Card className="border-accent-primary/30">
                   <p className="text-sm text-text-primary mb-3">{block.content}</p>
-                  <Button variant="primary" size="sm" onClick={() => window.location.href = `/exams/${block.quiz_id}`}>
+                  <Button variant="primary" size="sm" onClick={() => { if (block.quiz_id) navigate(`/exams/${block.quiz_id}`) }}>
                     Take Quiz <ChevronRight className="w-4 h-4" />
                   </Button>
                 </Card>

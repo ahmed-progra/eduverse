@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { DashboardData } from '../types'
 import * as lessonsApi from '../api/lessons'
+import * as coursesApi from '../api/courses'
 
 interface ProgressStore {
   dashboard: DashboardData | null
@@ -18,12 +19,12 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
   fetchDashboard: async () => {
     set({ isLoading: true })
     try {
-      const mod = await import('../api/courses')
-      const { getCourses } = mod
-      const courses = await getCourses()
+      const [paths, courses] = await Promise.all([
+        coursesApi.getPaths(),
+        coursesApi.getCourses(),
+      ])
       set({
         dashboard: {
-          user: null as never,
           in_progress_courses: courses,
           recent_lessons: [],
           achievements: [],
@@ -44,6 +45,6 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
     const current = new Set(get().completedLessons)
     current.add(lessonId)
     set({ completedLessons: current })
-    return res.xp_earned
+    return res.xp_earned || 0
   },
 }))

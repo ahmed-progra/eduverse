@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { BookOpen, CheckCircle, XCircle, Trophy, Home, RotateCcw } from 'lucide-react'
+import { BookOpen, CheckCircle, XCircle, Trophy, Home } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageSpinner } from '../components/ui/Spinner'
 import { useTitle } from '../hooks/useTitle'
 import axiosInstance from '../api/axiosInstance'
+import { getApiError } from '../utils/error'
+import { toast } from 'react-hot-toast'
 import type { ExamResult } from '../types'
 import confetti from 'canvas-confetti'
 
@@ -25,11 +27,14 @@ export default function ResultPage() {
           confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
         }
       })
+      .catch((err) => toast.error(getApiError(err, 'Failed to load results')))
       .finally(() => setIsLoading(false))
   }, [attemptId])
 
   if (isLoading) return <PageSpinner />
   if (!result) return <p className="text-text-muted text-center py-20">Result not found.</p>
+
+  const answers = result.answers || []
 
   return (
     <div className="min-h-screen bg-bg-base">
@@ -77,7 +82,7 @@ export default function ResultPage() {
         </Card>
 
         <div className="space-y-3">
-          {result.answers.map((ans, i) => (
+          {answers.map((ans, i) => (
             <motion.div
               key={ans.question_id}
               initial={{ opacity: 0, x: -10 }}

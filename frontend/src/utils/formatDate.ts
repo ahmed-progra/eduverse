@@ -1,5 +1,12 @@
-export function formatDate(date: string | Date): string {
+function toDate(date: string | Date): Date | null {
   const d = typeof date === 'string' ? new Date(date) : date
+  if (isNaN(d.getTime())) return null
+  return d
+}
+
+export function formatDate(date: string | Date): string {
+  const d = toDate(date)
+  if (!d) return 'Invalid date'
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -8,7 +15,8 @@ export function formatDate(date: string | Date): string {
 }
 
 export function formatDateTime(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date
+  const d = toDate(date)
+  if (!d) return 'Invalid date'
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -20,7 +28,8 @@ export function formatDateTime(date: string | Date): string {
 
 export function timeAgo(date: string | Date): string {
   const now = new Date()
-  const d = typeof date === 'string' ? new Date(date) : date
+  const d = toDate(date)
+  if (!d) return 'Invalid date'
   const diffMs = now.getTime() - d.getTime()
   const diffMins = Math.floor(diffMs / 60000)
 

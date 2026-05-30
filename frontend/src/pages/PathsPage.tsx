@@ -7,6 +7,8 @@ import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { CardSkeleton } from '../components/ui/Skeleton'
 import { getPaths } from '../api/courses'
+import { getApiError } from '../utils/error'
+import { toast } from 'react-hot-toast'
 import type { LearningPath } from '../types'
 import { useTitle } from '../hooks/useTitle'
 
@@ -14,10 +16,16 @@ export default function PathsPage() {
   useTitle('Learning Paths')
   const [paths, setPaths] = useState<LearningPath[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getPaths()
       .then(setPaths)
+      .catch((err) => {
+        const msg = getApiError(err, 'Failed to load paths')
+        setError(msg)
+        toast.error(msg)
+      })
       .finally(() => setIsLoading(false))
   }, [])
 
@@ -42,6 +50,8 @@ export default function PathsPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)}
           </div>
+        ) : error ? (
+          <p className="text-accent-danger text-center py-20">{error}</p>
         ) : paths.length === 0 ? (
           <p className="text-text-muted text-center py-20">No learning paths available yet.</p>
         ) : (

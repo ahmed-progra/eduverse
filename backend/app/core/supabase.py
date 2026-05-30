@@ -1,44 +1,30 @@
-import httpx
+import json
 from typing import Any
 
-from app.core.config import settings
+from app.core.database import get_conn
+
+
+def _row_to_dict(row) -> dict[str, Any]:
+    return dict(row) if row else None
 
 
 class SupabaseClient:
-    def __init__(self, api_key: str, jwt_token: str | None = None):
-        self.api_key = api_key
-        self.headers = {
-            "apikey": api_key,
-            "Content-Type": "application/json",
-        }
-        if jwt_token:
-            self.headers["Authorization"] = f"Bearer {jwt_token}"
-
-    @property
-    def _rest_headers(self) -> dict[str, str]:
-        return {
-            **self.headers,
-            "Prefer": "return=representation",
-        }
+    def __init__(self, api_key: str = "", jwt_token: str | None = None):
+        pass
 
     def table(self, table: str) -> "TableQuery":
-        return TableQuery(self, table)
-
-    def rpc(self, func: str, params: dict[str, Any] | None = None) -> httpx.Response:
-        url = f"{settings.SUPABASE_URL}/rest/v1/rpc/{func}"
-        with httpx.Client() as client:
-            return client.post(url, headers=self.headers, json=params or {})
+        return TableQuery(table)
 
 
 class TableQuery:
-    def __init__(self, client: SupabaseClient, table: str):
-        self.client = client
-        self.table = table
+    def __init__(self, table: str):
+        self.table_name = table
         self._select = "*"
         self._filters: list[tuple[str, str, Any]] = []
-        self._order: str | None = None
-        self._limit: int | None = None
-        self._range: tuple[int, int] | None = None
+        self._order_col: str | None = None
+        self._order_asc: bool = True
+        self._limit_val: int | None = None
+        self._offset_val: int | None = None
 
     def select(self, columns: str = "*") -> "TableQuery":
         self._select = columns
@@ -56,97 +42,151 @@ class TableQuery:
         self._filters.append(("neq", column, value))
         return self
 
-    def gt(self, column: str, value: Any) -> "TableQuery":
-        self._filters.append(("gt", column, value))
-        return self
-
-    def lt(self, column: str, value: Any) -> "TableQuery":
-        self._filters.append(("lt", column, value))
-        return self
-
-    def gte(self, column: str, value: Any) -> "TableQuery":
-        self._filters.append(("gte", column, value))
-        return self
-
-    def lte(self, column: str, value: Any) -> "TableQuery":
-        self._filters.append(("lte", column, value))
-        return self
-
     def order(self, column: str, ascending: bool = True) -> "TableQuery":
-        self._order = f"{column}.{'asc' if ascending else 'desc'}"
+        self._order_col = column
+        self._order_asc = ascending
         return self
 
     def limit(self, count: int) -> "TableQuery":
-        self._limit = count
+        self._limit_val = count
         return self
 
     def range(self, start: int, end: int) -> "TableQuery":
-        self._range = (start, end)
+        self._offset_val = start
+        self._limit_val = end - start
         return self
 
-    def _build_url(self) -> str:
-        url = f"{settings.SUPABASE_URL}/rest/v1/{self.table}?select={self._select}"
+    def _build_sql(self) -> tuple[str, list[Any]]:
+        cols = ", ".join(f'"{c.strip()}"' for c in self._select.split(",")) if self._select != "*" else "*"
+        sql = f'SELECT {cols} FROM "{self.table_name}"'
+        params: list[Any] = []
+        where_parts: list[str] = []
         for op, col, val in self._filters:
-            if op == "in":
-                vals = ",".join(str(v) for v in val)
-                url += f"&{col}=in.({vals})"
+            if op == "eq":
+                where_parts.append(f'"{col}" = ?'); params.append(val)
+            elif op == "neq":
+                where_parts.append(f'"{col}" != ?'); params.append(val)
+            elif op == "in":
+                if not val:
+                    where_parts.append("1=0")
+                else:
+                    placeholders = ", ".join("?" for _ in val)
+                    where_parts.append(f'"{col}" IN ({placeholders})')
+                    params.extend(val)
+        if where_parts:
+            sql += " WHERE " + " AND ".join(where_parts)
+        if self._order_col:
+            sql += f' ORDER BY "{self._order_col}" {"ASC" if self._order_asc else "DESC"}'
+        if self._limit_val is not None:
+            sql += f" LIMIT {self._limit_val}"
+        if self._offset_val is not None:
+            sql += f" OFFSET {self._offset_val}"
+        return sql, params
+
+    JSON_FIELDS = {"content", "options", "answers"}
+
+    def _parse_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        result = {}
+        for k, v in row.items():
+            if v is not None and k in self.JSON_FIELDS and isinstance(v, str):
+                try:
+                    result[k] = json.loads(v)
+                except (json.JSONDecodeError, TypeError):
+                    result[k] = v
             else:
-                url += f"&{col}={op}.{val}"
-        if self._order:
-            url += f"&order={self._order}"
-        if self._limit:
-            url += f"&limit={self._limit}"
-        if self._range:
-            url += f"&offset={self._range[0]}&limit={self._range[1] - self._range[0]}"
-        return url
+                result[k] = v
+        return result
 
     def execute(self) -> list[dict[str, Any]]:
-        url = self._build_url()
-        with httpx.Client() as client:
-            resp = client.get(url, headers=self.client._rest_headers)
-            resp.raise_for_status()
-            return resp.json()
+        conn = get_conn()
+        try:
+            sql, params = self._build_sql()
+            return [self._parse_row(dict(r)) for r in conn.execute(sql, params).fetchall()]
+        finally:
+            conn.close()
 
     def execute_single(self) -> dict[str, Any] | None:
-        rows = self.limit(1).execute()
+        self._limit_val = 1
+        rows = self.execute()
         return rows[0] if rows else None
 
+    def _serialize(self, item: dict[str, Any]) -> dict[str, Any]:
+        result = {}
+        for k, v in item.items():
+            if isinstance(v, (dict, list)):
+                result[k] = json.dumps(v)
+            else:
+                result[k] = v
+        return result
+
     def insert(self, data: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
-        url = f"{settings.SUPABASE_URL}/rest/v1/{self.table}"
-        with httpx.Client() as client:
-            resp = client.post(url, headers=self.client._rest_headers, json=data)
-            resp.raise_for_status()
-            return resp.json()
+        conn = get_conn()
+        try:
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                item = self._serialize(item)
+                cols = ", ".join(f'"{k}"' for k in item.keys())
+                placeholders = ", ".join("?" for _ in item)
+                conn.execute(
+                    f'INSERT INTO "{self.table_name}" ({cols}) VALUES ({placeholders})',
+                    list(item.values()),
+                )
+            conn.commit()
+            return items
+        finally:
+            conn.close()
 
     def update(self, data: dict[str, Any]) -> list[dict[str, Any]]:
-        url = self._build_url().split("?")[0]
-        params = self._build_url().split("?", 1)[1] if "?" in self._build_url() else ""
-        full_url = f"{url}?{params}" if params else url
-        with httpx.Client() as client:
-            resp = client.patch(full_url, headers=self.client._rest_headers, json=data)
-            resp.raise_for_status()
-            return resp.json()
+        conn = get_conn()
+        try:
+            data = self._serialize(data)
+            sql, params = self._build_sql()
+            where_clause = sql.split("WHERE", 1)[1] if "WHERE" in sql else "1=1"
+            set_clause = ", ".join(f'"{k}" = ?' for k in data.keys())
+            conn.execute(
+                f'UPDATE "{self.table_name}" SET {set_clause} WHERE {where_clause}',
+                list(data.values()) + params,
+            )
+            conn.commit()
+            select_sql = f'SELECT {self._select} FROM "{self.table_name}" WHERE {where_clause}'
+            return [dict(r) for r in conn.execute(select_sql, params).fetchall()]
+        finally:
+            conn.close()
 
     def upsert(self, data: dict[str, Any], on_conflict: str | None = None) -> list[dict[str, Any]]:
-        headers = {**self.client._rest_headers, "Prefer": "resolution=merge-duplicates,return=representation"}
-        if on_conflict:
-            headers["Prefer"] = f"resolution=merge-duplicates,return=representation,on_conflict={on_conflict}"
-        url = f"{settings.SUPABASE_URL}/rest/v1/{self.table}"
-        with httpx.Client() as client:
-            resp = client.post(url, headers=headers, json=data)
-            resp.raise_for_status()
-            return resp.json()
+        conn = get_conn()
+        try:
+            data = self._serialize(data)
+            cols = ", ".join(f'"{k}"' for k in data.keys())
+            placeholders = ", ".join("?" for _ in data)
+            values = list(data.values())
+            if on_conflict:
+                conflict_cols = ", ".join(f'"{c.strip()}"' for c in on_conflict.split(","))
+                updates = ", ".join(f'"{k}" = excluded."{k}"' for k in data.keys())
+                sql = f'INSERT INTO "{self.table_name}" ({cols}) VALUES ({placeholders}) ON CONFLICT({conflict_cols}) DO UPDATE SET {updates}'
+            else:
+                sql = f'INSERT INTO "{self.table_name}" ({cols}) VALUES ({placeholders})'
+            conn.execute(sql, values)
+            conn.commit()
+            return [data]
+        finally:
+            conn.close()
 
     def delete(self) -> list[dict[str, Any]]:
-        url = self._build_url()
-        with httpx.Client() as client:
-            resp = client.delete(url, headers=self.client._rest_headers)
-            resp.raise_for_status()
-            return resp.json()
+        conn = get_conn()
+        try:
+            rows = self.execute()
+            sql, params = self._build_sql()
+            where_clause = sql.split("WHERE", 1)[1] if "WHERE" in sql else "1=1"
+            conn.execute(f'DELETE FROM "{self.table_name}" WHERE {where_clause}', params)
+            conn.commit()
+            return rows
+        finally:
+            conn.close()
 
 
-supabase_admin = SupabaseClient(settings.effective_service_key)
+supabase_admin = SupabaseClient()
 
 
 def get_supabase_client(jwt_token: str) -> SupabaseClient:
-    return SupabaseClient(settings.SUPABASE_ANON_KEY, jwt_token)
+    return SupabaseClient("", jwt_token)

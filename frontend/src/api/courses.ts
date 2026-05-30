@@ -7,12 +7,15 @@ export async function getPaths(): Promise<LearningPath[]> {
 }
 
 export async function getCourses(pathSlug?: string): Promise<Course[]> {
-  const params = pathSlug ? { path_slug: pathSlug } : {}
-  const { data } = await axiosInstance.get<Course[]>('/courses', { params })
-  return data
+  if (pathSlug) {
+    const { data } = await axiosInstance.get<Course[]>(`/paths/${pathSlug}/courses`)
+    return data
+  }
+  const { data } = await axiosInstance.get<Course[]>('/paths')
+  return []
 }
 
-export async function getCourse(slug: string): Promise<Course> {
-  const { data } = await axiosInstance.get<Course>(`/courses/${slug}`)
+export async function getCourse(slug: string): Promise<any> {
+  const { data } = await axiosInstance.get<any>(`/courses/${slug}`)
   return data
 }

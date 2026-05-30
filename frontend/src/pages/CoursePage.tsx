@@ -13,18 +13,23 @@ import { useTitle } from '../hooks/useTitle'
 export default function CoursePage() {
   const { courseSlug } = useParams<{ courseSlug: string }>()
   useTitle(courseSlug ? `${courseSlug.replace(/-/g, ' ')}` : 'Course')
-  const [course, setCourse] = useState<Course | null>(null)
+  const [course, setCourse] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!courseSlug) return
     getCourse(courseSlug)
-      .then(setCourse)
+      .then((data: any) => setCourse(data))
+      .catch(() => {})
       .finally(() => setIsLoading(false))
   }, [courseSlug])
 
   if (isLoading) return <div className="p-6"><CardSkeleton /></div>
   if (!course) return <p className="text-text-muted text-center py-20">Course not found.</p>
+
+  const lessons: any[] = course.lessons || []
+  const completedLessons = course.completed_lessons || 0
+  const totalLessons = lessons.length || course.total_lessons || 0
 
   return (
     <div className="min-h-screen bg-bg-base">
@@ -38,39 +43,39 @@ export default function CoursePage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <Link to={course.path_id ? `/paths/${course.path_id}` : '/paths'} className="inline-flex items-center gap-2 text-text-muted hover:text-text-secondary transition-colors mb-6">
+        <a href="/paths" className="inline-flex items-center gap-2 text-text-muted hover:text-text-secondary transition-colors mb-6">
           <ArrowLeft className="w-4 h-4" /> Back
-        </Link>
+        </a>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-center gap-3 mb-2">
             <Badge variant={course.difficulty as 'beginner' | 'intermediate' | 'advanced'}>
               {course.difficulty}
             </Badge>
-            <span className="text-xs text-text-muted">{course.xp_reward} XP total</span>
+            <span className="text-xs text-text-muted">{course.estimated_hours || '?'} hours</span>
           </div>
           <h1 className="font-display text-3xl font-bold text-text-primary">{course.title}</h1>
           <p className="text-text-secondary mt-2">{course.description}</p>
           <div className="mt-6">
-            <ProgressBar value={course.completed_lessons} max={course.lesson_count} />
+            <ProgressBar value={completedLessons} max={totalLessons || 1} />
           </div>
-          <p className="text-text-muted text-sm mt-2">{course.completed_lessons} of {course.lesson_count} lessons completed</p>
+          <p className="text-text-muted text-sm mt-2">{completedLessons} of {totalLessons} lessons completed</p>
         </motion.div>
 
         <div className="mt-8 space-y-3">
-          {Array.from({ length: course.lesson_count }).map((_, i) => (
-            <Link key={i} to={`/lessons/lesson_${course.id}_${i + 1}`}>
+          {lessons.map((lesson: any, i: number) => (
+            <Link key={lesson.id} to={`/lessons/${lesson.id}`}>
               <Card className="flex items-center gap-4 py-4 px-5 hover:border-accent-primary/40 transition-all cursor-pointer">
-                {i < course.completed_lessons ? (
+                {i < completedLessons ? (
                   <CheckCircle className="w-5 h-5 text-accent-success shrink-0" />
                 ) : (
                   <FileText className="w-5 h-5 text-text-muted shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-text-primary truncate">
-                    Lesson {i + 1}
+                    {lesson.title}
                   </p>
-                  <p className="text-xs text-text-muted">{i < course.completed_lessons ? 'Completed' : 'Not started'}</p>
+                  <p className="text-xs text-text-muted">{i < completedLessons ? 'Completed' : 'Not started'}</p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-text-muted shrink-0" />
               </Card>

@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import auth, courses, lessons, exams, progress, ai
 from app.core.config import settings
+from app.core.database import init_db
 from app.middleware.cors import setup_cors
 from app.middleware.rate_limiter import setup_rate_limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -12,6 +13,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     yield
 
 

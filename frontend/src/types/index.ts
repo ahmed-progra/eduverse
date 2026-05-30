@@ -35,13 +35,15 @@ export interface Course {
   slug: string
   description: string
   thumbnail_url?: string
-  path_id: string
+  path_id?: string
   path_title?: string
+  path_slug?: string
   lesson_count: number
   completed_lessons: number
   difficulty: 'beginner' | 'intermediate' | 'advanced'
   xp_reward: number
   exam_id?: string
+  lessons?: Lesson[]
 }
 
 export interface Lesson {
@@ -107,7 +109,7 @@ export interface ExamResult {
   percentage: number
   passed: boolean
   xp_earned: number
-  answers: {
+  answers?: {
     question_id: string
     question_text: string
     selected_option?: number
@@ -128,7 +130,7 @@ export interface Progress {
 }
 
 export interface DashboardData {
-  user: User
+  user?: User
   in_progress_courses: Course[]
   recent_lessons: Lesson[]
   achievements: Achievement[]

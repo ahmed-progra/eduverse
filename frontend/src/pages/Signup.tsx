@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { useAuthStore } from '../stores/authStore'
 import { useTitle } from '../hooks/useTitle'
+import { getApiError } from '../utils/error'
 
 export default function Signup() {
   useTitle('Create account')
@@ -24,7 +25,7 @@ export default function Signup() {
       toast.success('Account created! Welcome to EduVerse.')
       navigate('/dashboard')
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Signup failed')
+      toast.error(getApiError(err, 'Signup failed'))
     } finally {
       setIsLoading(false)
     }
@@ -42,7 +43,7 @@ export default function Signup() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+          <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={12} placeholder="12+ chars, uppercase, number, special char" />
           <Button type="submit" isLoading={isLoading} className="w-full">
             Create account
           </Button>

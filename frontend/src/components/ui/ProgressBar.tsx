@@ -19,7 +19,7 @@ export function ProgressBar({
   size = 'md',
   className = '',
 }: ProgressBarProps) {
-  const percentage = Math.min(Math.round((value / max) * 100), 100)
+  const percentage = max > 0 ? Math.min(Math.round((value / max) * 100), 100) : 0
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>

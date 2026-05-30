@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { useAuthStore } from '../stores/authStore'
 import { useTitle } from '../hooks/useTitle'
+import { getApiError } from '../utils/error'
 
 export default function Login() {
   useTitle('Log in')
@@ -23,7 +24,7 @@ export default function Login() {
       toast.success('Welcome back!')
       navigate('/dashboard')
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Login failed')
+      toast.error(getApiError(err, 'Login failed'))
     } finally {
       setIsLoading(false)
     }

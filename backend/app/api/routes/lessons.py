@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.core.database import get_conn
 from app.core.security import get_current_user
 from app.core.supabase import supabase_admin
 
@@ -11,13 +12,20 @@ router = APIRouter(prefix="/api/lessons", tags=["lessons"])
 @router.get("/{lesson_id}")
 async def get_lesson(lesson_id: int, current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("sub")
-
     lesson = supabase_admin.table("lessons").select("*").eq("id", lesson_id).execute_single()
     if not lesson:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
 
-    progress = supabase_admin.table("user_progress").select("completed").eq("user_id", user_id).eq("lesson_id", lesson_id).execute_single()
-    is_completed = progress.get("completed", False) if progress else False
+    conn = get_conn()
+    try:
+        progress = conn.execute(
+            'SELECT "completed" FROM "user_progress" WHERE "user_id" = ? AND "lesson_id" = ?',
+            [user_id, lesson_id],
+        ).fetchone()
+    finally:
+        conn.close()
+
+    is_completed = bool(progress and progress["completed"])
 
     return {
         "id": lesson["id"],
@@ -35,27 +43,30 @@ async def get_lesson(lesson_id: int, current_user: dict = Depends(get_current_us
 @router.post("/{lesson_id}/complete")
 async def complete_lesson(lesson_id: int, current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("sub")
+    conn = get_conn()
+    try:
+        lesson = conn.execute(
+            'SELECT "id", "course_id", "order" FROM "lessons" WHERE "id" = ?', [lesson_id]
+        ).fetchone()
+        if not lesson:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
 
-    lesson = supabase_admin.table("lessons").select("id, course_id, courses(path_id, order)").eq("id", lesson_id).execute_single()
-    if not lesson:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
+        course = conn.execute(
+            'SELECT "id", "path_id" FROM "courses" WHERE "id" = ?', [lesson["course_id"]]
+        ).fetchone()
 
-    course = lesson.get("courses", {})
-    path_id = course.get("path_id")
+        conn.execute(
+            'INSERT INTO "user_progress" ("user_id", "lesson_id", "course_id", "path_id", "completed", "completed_at") VALUES (?, ?, ?, ?, 1, ?) ON CONFLICT("user_id", "lesson_id") DO UPDATE SET "completed" = 1, "completed_at" = ?',
+            [user_id, lesson_id, lesson["course_id"], course["path_id"] if course else None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()],
+        )
+        conn.commit()
 
-    supabase_admin.table("user_progress").upsert({
-        "user_id": user_id,
-        "lesson_id": lesson_id,
-        "course_id": lesson["course_id"],
-        "path_id": path_id,
-        "completed": True,
-        "completed_at": datetime.now(timezone.utc).isoformat(),
-    }, on_conflict="user_id,lesson_id")
+        next_lesson = conn.execute(
+            'SELECT "id" FROM "lessons" WHERE "course_id" = ? AND "order" = ?',
+            [lesson["course_id"], lesson["order"] + 1],
+        ).fetchone()
+        next_lesson_id = next_lesson["id"] if next_lesson else None
 
-    next_lesson = supabase_admin.table("lessons").select("id").eq("course_id", lesson["course_id"]).eq("order", lesson.get("order", 0) + 1).execute_single()
-    next_lesson_id = next_lesson.get("id") if next_lesson else None
-
-    return {
-        "success": True,
-        "next_lesson_id": next_lesson_id,
-    }
+        return {"success": True, "next_lesson_id": next_lesson_id}
+    finally:
+        conn.close()

@@ -7,6 +7,8 @@ import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { CardSkeleton } from '../components/ui/Skeleton'
 import { getCourses } from '../api/courses'
+import { getApiError } from '../utils/error'
+import { toast } from 'react-hot-toast'
 import type { Course } from '../types'
 import { useTitle } from '../hooks/useTitle'
 
@@ -20,6 +22,7 @@ export default function PathDetailPage() {
     if (!pathSlug) return
     getCourses(pathSlug)
       .then(setCourses)
+      .catch((err) => toast.error(getApiError(err, 'Failed to load courses')))
       .finally(() => setIsLoading(false))
   }, [pathSlug])
 
