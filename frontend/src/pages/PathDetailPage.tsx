@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, BookOpen } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, Code, Calculator, Atom } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { CardSkeleton } from '../components/ui/Skeleton'
+import { FadeIn, StaggerChildren, StaggerItem, GlowCard } from '../components/ui/TextAnimation'
 import { getCourses } from '../api/courses'
 import { getApiError } from '../utils/error'
 import { toast } from 'react-hot-toast'
@@ -28,11 +29,13 @@ export default function PathDetailPage() {
 
   return (
     <div className="min-h-screen bg-bg-base">
-      <header className="border-b border-bg-border">
+      <header className="border-b border-bg-border/50 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-accent-primary" />
-            <span className="font-display text-xl font-bold gradient-text">EduVerse</span>
+            <span className="font-display text-xl font-bold bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent">
+              EduVerse
+            </span>
           </div>
         </div>
       </header>
@@ -42,10 +45,14 @@ export default function PathDetailPage() {
           <ArrowLeft className="w-4 h-4" /> Back to paths
         </Link>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-text-primary capitalize">{pathSlug?.replace(/-/g, ' ')}</h1>
-          <p className="text-text-secondary mt-1">{courses.length} courses available</p>
-        </motion.div>
+        <FadeIn>
+          <div className="mb-8">
+            <h1 className="font-display text-3xl md:text-4xl font-bold text-text-primary capitalize">
+              {pathSlug?.replace(/-/g, ' ')}
+            </h1>
+            <p className="text-text-secondary mt-1">{courses.length} course{courses.length !== 1 ? 's' : ''} available</p>
+          </div>
+        </FadeIn>
 
         {isLoading ? (
           <div className="grid md:grid-cols-2 gap-6">
@@ -54,21 +61,21 @@ export default function PathDetailPage() {
         ) : courses.length === 0 ? (
           <p className="text-text-muted text-center py-20">No courses in this path yet.</p>
         ) : (
-          <div className="grid md:grid-cols-2 gap-6">
-            {courses.map((course, i) => (
-              <motion.div
-                key={course.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
+          <StaggerChildren staggerDelay={0.12} className="grid md:grid-cols-2 gap-6">
+            {courses.map((course) => (
+              <StaggerItem key={course.id}>
                 <Link to={`/courses/${course.slug}`} className="block group">
-                  <Card className="h-full hover:border-accent-primary/40 transition-all duration-300">
+                  <GlowCard>
                     <div className="flex items-start justify-between mb-3">
                       <Badge variant={course.difficulty as 'beginner' | 'intermediate' | 'advanced'}>
                         {course.difficulty}
                       </Badge>
-                      <span className="text-xs text-text-muted">{course.xp_reward} XP</span>
+                      <motion.span
+                        className="text-xs text-accent-primary font-mono font-bold"
+                        whileHover={{ scale: 1.1 }}
+                      >
+                        {course.xp_reward} XP
+                      </motion.span>
                     </div>
                     <h3 className="font-display text-lg font-semibold text-text-primary group-hover:text-accent-primary transition-colors">
                       {course.title}
@@ -79,15 +86,18 @@ export default function PathDetailPage() {
                     </div>
                     <div className="flex items-center justify-between mt-4 text-sm">
                       <span className="text-text-muted">{course.completed_lessons}/{course.lesson_count} lessons</span>
-                      <span className="text-accent-primary font-medium inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                      <motion.span
+                        className="text-accent-primary font-medium inline-flex items-center gap-1"
+                        whileHover={{ gap: '0.5rem' }}
+                      >
                         Start <ArrowRight className="w-3 h-3" />
-                      </span>
+                      </motion.span>
                     </div>
-                  </Card>
+                  </GlowCard>
                 </Link>
-              </motion.div>
+              </StaggerItem>
             ))}
-          </div>
+          </StaggerChildren>
         )}
       </main>
     </div>

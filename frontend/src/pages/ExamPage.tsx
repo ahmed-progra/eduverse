@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { BookOpen, Clock, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react'
+import { BookOpen, Clock, ArrowLeft, ArrowRight, CheckCircle, Zap } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageSpinner } from '../components/ui/Spinner'
+import { FadeIn, StaggerChildren, StaggerItem } from '../components/ui/TextAnimation'
 import { getExam, submitExam } from '../api/exams'
 import { getApiError } from '../utils/error'
 import type { Exam, Question } from '../types'
@@ -81,97 +82,118 @@ export default function ExamPage() {
 
   return (
     <div className="min-h-screen bg-bg-base">
-      <header className="border-b border-bg-border">
+      <header className="border-b border-bg-border/50 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-accent-primary" />
-            <span className="font-display text-xl font-bold gradient-text">EduVerse</span>
+            <span className="font-display text-xl font-bold bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent">
+              EduVerse
+            </span>
           </div>
           {timeLeft !== null && (
-            <div className={`flex items-center gap-2 text-sm font-mono ${timeLeft < 60 ? 'text-accent-danger' : 'text-text-secondary'}`}>
+            <motion.div
+              className={`flex items-center gap-2 text-sm font-mono ${timeLeft < 60 ? 'text-accent-danger' : 'text-text-secondary'}`}
+              animate={timeLeft < 60 ? { scale: [1, 1.05, 1] } : {}}
+              transition={{ repeat: Infinity, duration: 1 }}
+            >
               <Clock className="w-4 h-4" />
               {formatTime(timeLeft)}
-            </div>
+            </motion.div>
           )}
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-display text-2xl font-bold text-text-primary">{exam.title}</h1>
-          <p className="text-text-secondary mt-1">{exam.description}</p>
-          <p className="text-text-muted text-sm mt-1">Passing score: {exam.passing_score}% &bull; {exam.xp_reward} XP</p>
-        </motion.div>
+        <FadeIn>
+          <div className="mb-6">
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-text-primary">{exam.title}</h1>
+            <p className="text-text-secondary mt-1">{exam.description}</p>
+            <p className="text-text-muted text-sm mt-1 flex items-center gap-1">
+              Passing score: {exam.passing_score}%
+              {exam.xp_reward && (
+                <><span className="mx-1">&bull;</span><Zap className="w-3 h-3 text-accent-primary" /> {exam.xp_reward} XP</>
+              )}
+            </p>
+          </div>
+        </FadeIn>
 
-        <div className="mt-8 space-y-6">
+        <StaggerChildren staggerDelay={0.06} className="mt-6 space-y-4">
           {exam.questions.map((q, i) => (
-            <motion.div key={q.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card>
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="text-sm font-medium text-text-primary">
-                    {i + 1}. {q.text}
-                  </h3>
-                  <span className="text-xs text-text-muted shrink-0 ml-2">{q.points} pts</span>
-                </div>
-                {q.type === 'multiple_choice' && q.options && (
-                  <div className="space-y-2">
-                    {q.options.map((opt, oi) => (
-                      <label
-                        key={oi}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                          answers[q.id] === oi
-                            ? 'border-accent-primary bg-accent-primary/5'
-                            : 'border-bg-border hover:border-text-muted'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={q.id}
-                          checked={answers[q.id] === oi}
-                          onChange={() => handleSelect(q.id, oi)}
-                          className="accent-accent-primary"
-                        />
-                        <span className="text-sm text-text-primary">{opt}</span>
-                      </label>
-                    ))}
+            <StaggerItem key={q.id}>
+              <motion.div whileHover={{ x: 2 }}>
+                <Card>
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="text-sm font-medium text-text-primary">
+                      {i + 1}. {q.text}
+                    </h3>
+                    <span className="text-xs text-text-muted shrink-0 ml-2 px-2 py-0.5 rounded bg-bg-border/50">{q.points} pts</span>
                   </div>
-                )}
-                {q.type === 'code' && (
-                  <textarea
-                    value={(answers[q.id] as string) || ''}
-                    onChange={(e) => handleSelect(q.id, e.target.value)}
-                    placeholder="Write your code here..."
-                    className="w-full h-32 px-4 py-3 rounded-xl bg-bg-surface border border-bg-border text-text-primary font-mono text-sm focus:outline-none focus:border-accent-primary resize-y"
-                    spellCheck={false}
-                  />
-                )}
-                {q.type === 'short_answer' && (
-                  <textarea
-                    value={(answers[q.id] as string) || ''}
-                    onChange={(e) => handleSelect(q.id, e.target.value)}
-                    placeholder="Type your answer..."
-                    className="w-full px-4 py-3 rounded-xl bg-bg-surface border border-bg-border text-text-primary text-sm focus:outline-none focus:border-accent-primary resize-none"
-                    rows={3}
-                  />
-                )}
-              </Card>
-            </motion.div>
+                  {q.type === 'multiple_choice' && q.options && (
+                    <div className="space-y-2">
+                      {q.options.map((opt, oi) => (
+                        <label
+                          key={oi}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                            answers[q.id] === oi
+                              ? 'border-accent-primary bg-accent-primary/5 shadow-sm shadow-accent-primary/10'
+                              : 'border-bg-border hover:border-text-muted hover:bg-bg-surface'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={q.id}
+                            checked={answers[q.id] === oi}
+                            onChange={() => handleSelect(q.id, oi)}
+                            className="accent-accent-primary"
+                          />
+                          <span className="text-sm text-text-primary">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {q.type === 'code' && (
+                    <textarea
+                      value={(answers[q.id] as string) || ''}
+                      onChange={(e) => handleSelect(q.id, e.target.value)}
+                      placeholder="Write your code here..."
+                      className="w-full h-32 px-4 py-3 rounded-xl bg-bg-surface border border-bg-border text-text-primary font-mono text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/20 resize-y transition-all"
+                      spellCheck={false}
+                    />
+                  )}
+                  {q.type === 'short_answer' && (
+                    <textarea
+                      value={(answers[q.id] as string) || ''}
+                      onChange={(e) => handleSelect(q.id, e.target.value)}
+                      placeholder="Type your answer..."
+                      className="w-full px-4 py-3 rounded-xl bg-bg-surface border border-bg-border text-text-primary text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/20 resize-none transition-all"
+                      rows={3}
+                    />
+                  )}
+                </Card>
+              </motion.div>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerChildren>
 
         <div className="mt-8 flex items-center justify-between">
-          <span className="text-sm text-text-muted">
-            {Object.keys(answers).length} of {exam.questions.length} answered
-          </span>
-          <Button
-            variant="success"
-            onClick={handleSubmit}
-            isLoading={isSubmitting}
-            disabled={Object.keys(answers).length < exam.questions.length}
+          <motion.span
+            className="text-sm text-text-muted"
+            animate={{ scale: Object.keys(answers).length === exam.questions.length ? [1, 1.05, 1] : 1 }}
+            transition={{ duration: 0.3 }}
           >
-            <CheckCircle className="w-4 h-4" />
-            Submit Exam
-          </Button>
+            {Object.keys(answers).length} of {exam.questions.length} answered
+          </motion.span>
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            <Button
+              variant="success"
+              onClick={handleSubmit}
+              isLoading={isSubmitting}
+              disabled={Object.keys(answers).length < exam.questions.length}
+            >
+              <CheckCircle className="w-4 h-4" />
+              Submit Exam
+            </Button>
+          </motion.div>
         </div>
       </main>
     </div>

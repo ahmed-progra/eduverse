@@ -50,11 +50,12 @@ export interface Lesson {
   id: string
   course_id: string
   title: string
-  slug: string
-  order_index: number
-  blocks: LessonBlock[]
-  xp_reward: number
-  is_completed: boolean
+  slug?: string
+  order_index?: number
+  blocks?: LessonBlock[]
+  content?: LessonBlock[]
+  xp_reward?: number
+  is_completed?: boolean
 }
 
 export interface LessonBlock {
