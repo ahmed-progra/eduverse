@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+supabase
+python-dotenv
+pydantic-settings
+anthropic
+python-jose[cryptography]
+passlib[bcrypt]
+slowapi
+python-multipart
+httpx
+bleach
+alembic
+psycopg2-binary
