@@ -2,9 +2,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    SUPABASE_URL: str = "https://frafepicpxiabgtezej.supabase.co"
+    SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
-    SUPABASE_ANON_KEY: str = "sb_publishable_JfOsGyO6w2HL9_DL3v7yyg_ubc4c-eZ"
+    SUPABASE_ANON_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     JWT_SECRET: str = ""
     ALGORITHM: str = "HS256"
@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/eduverse"
 
     model_config = {"env_file": ".env", "case_sensitive": True}
+
+    @property
+    def effective_service_key(self) -> str:
+        if self.SUPABASE_SERVICE_KEY:
+            return self.SUPABASE_SERVICE_KEY
+        if self.ENVIRONMENT == "development":
+            return self.SUPABASE_ANON_KEY
+        raise ValueError("SUPABASE_SERVICE_KEY must be set in production")
 
 
 settings = Settings()

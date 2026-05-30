@@ -19,13 +19,11 @@ router = APIRouter(prefix="/api/exams", tags=["exams"])
 
 @router.get("/{exam_id}", response_model=ExamResponse)
 async def get_exam(exam_id: int, current_user: dict = Depends(get_current_user)):
-    exam_resp = supabase_admin.table("exams").select("*").eq("id", exam_id).single().execute()
-    exam = exam_resp.data
+    exam = supabase_admin.table("exams").select("*").eq("id", exam_id).execute_single()
     if not exam:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
 
-    questions_resp = supabase_admin.table("questions").select("id, exam_id, question_text, options, question_type, points, order").eq("exam_id", exam_id).order("order").execute()
-    questions = questions_resp.data
+    questions = supabase_admin.table("questions").select("id, exam_id, question_text, options, question_type, points, order").eq("exam_id", exam_id).order("order").execute()
 
     random.shuffle(questions)
 
@@ -46,8 +44,8 @@ async def get_exam(exam_id: int, current_user: dict = Depends(get_current_user))
 async def submit_exam(exam_id: int, request: ExamSubmitRequest, current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("sub")
 
-    exam_resp = supabase_admin.table("exams").select("id").eq("id", exam_id).single().execute()
-    if not exam_resp.data:
+    exam = supabase_admin.table("exams").select("id").eq("id", exam_id).execute_single()
+    if not exam:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
 
     result = await calculate_score(request.answers, exam_id)
@@ -61,7 +59,7 @@ async def submit_exam(exam_id: int, request: ExamSubmitRequest, current_user: di
         "passed": result.passed,
         "answers": request.answers,
         "created_at": datetime.now(timezone.utc).isoformat(),
-    }).execute()
+    })
 
     return result
 
@@ -70,11 +68,11 @@ async def submit_exam(exam_id: int, request: ExamSubmitRequest, current_user: di
 async def get_exam_attempts(exam_id: int, current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("sub")
 
-    exam_resp = supabase_admin.table("exams").select("id").eq("id", exam_id).single().execute()
-    if not exam_resp.data:
+    exam = supabase_admin.table("exams").select("id").eq("id", exam_id).execute_single()
+    if not exam:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
 
-    attempts_resp = supabase_admin.table("exam_attempts").select("*").eq("user_id", user_id).eq("exam_id", exam_id).order("created_at", desc=True).execute()
+    attempts = supabase_admin.table("exam_attempts").select("*").eq("user_id", user_id).eq("exam_id", exam_id).order("created_at", ascending=False).execute()
 
     return [
         AttemptResponse(
@@ -87,5 +85,5 @@ async def get_exam_attempts(exam_id: int, current_user: dict = Depends(get_curre
             answers=a.get("answers"),
             created_at=a["created_at"],
         )
-        for a in attempts_resp.data
+        for a in attempts
     ]

@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-supabase
+# supabase replaced with httpx-based client (see app/core/supabase.py)
 python-dotenv
 pydantic-settings
 anthropic

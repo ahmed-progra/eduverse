@@ -4,11 +4,10 @@ from app.core.supabase import supabase_admin
 
 
 async def get_dashboard(user_id: str) -> dict:
-    user_progress_resp = supabase_admin.table("user_progress").select("*").eq("user_id", user_id).execute()
-    completed = [p for p in user_progress_resp.data if p.get("completed")]
+    user_progress = supabase_admin.table("user_progress").select("*").eq("user_id", user_id).execute()
+    completed = [p for p in user_progress if p.get("completed")]
 
-    lessons_resp = supabase_admin.table("lessons").select("id, course_id, title, courses!inner(id, title, path_id, learning_paths!inner(id, title))").execute()
-    all_lessons = lessons_resp.data
+    all_lessons = supabase_admin.table("lessons").select("id, course_id, title, courses!inner(id, title, path_id, learning_paths!inner(id, title))").execute()
 
     total_lessons = len(all_lessons)
     total_completed = len(completed)
@@ -76,8 +75,7 @@ async def get_dashboard(user_id: str) -> dict:
         last_lesson_id = completed_sorted[0].get("lesson_id")
         last_activity = completed_sorted[0].get("completed_at")
         if last_lesson_id:
-            ll_resp = supabase_admin.table("lessons").select("id, title").eq("id", last_lesson_id).single().execute()
-            last_lesson = ll_resp.data
+            last_lesson = supabase_admin.table("lessons").select("id, title").eq("id", last_lesson_id).execute_single()
 
     streak_days = 0
     if completed_sorted:
